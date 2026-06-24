@@ -1,0 +1,70 @@
+# Sample app deployed via GitOps to prove Flux reconciles a SUBDIRECTORY of the
+# repo (clusters/aks-automatic), i.e. monorepo + subdirectory works (not monorepo-only).
+# Crafted to pass AKS Automatic Deployment Safeguards + baseline PSS:
+#  - explicit image tag (no :latest)
+#  - CPU/memory requests on every container
+#  - readiness + liveness probes
+#  - single replica (avoids the 2-replica antiAffinity requirement)
+#  - non-root, seccomp RuntimeDefault, no privilege escalation
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: podinfo
+  namespace: gitops-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: podinfo
+  template:
+    metadata:
+      labels:
+        app: podinfo
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: podinfo
+          image: ghcr.io/stefanprodan/podinfo:6.7.1
+          ports:
+            - name: http
+              containerPort: 9898
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: podinfo
+  namespace: gitops-demo
+spec:
+  selector:
+    app: podinfo
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

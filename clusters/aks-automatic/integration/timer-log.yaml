@@ -1,0 +1,27 @@
+# Camel K Integration deployed via GitOps to AKS Automatic.
+# Traits make it Deployment-Safeguards friendly:
+#  - health trait adds readiness/liveness probes to the running Integration pod
+#  - container trait sets CPU/memory requests and limits
+apiVersion: camel.apache.org/v1
+kind: Integration
+metadata:
+  name: timer-log
+  namespace: camel-k
+spec:
+  traits:
+    health:
+      enabled: true
+    container:
+      requestCPU: "125m"
+      requestMemory: "128Mi"
+      limitCPU: "500m"
+      limitMemory: "256Mi"
+  sources:
+    - name: timer-log.yaml
+      content: |
+        - from:
+            uri: timer:tick?period=5000
+            steps:
+              - setBody:
+                  constant: "Hello from Camel K on AKS Automatic"
+              - to: log:info
